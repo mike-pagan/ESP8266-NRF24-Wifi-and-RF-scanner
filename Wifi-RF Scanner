@@ -1,0 +1,81 @@
+#include <ESP8266WiFi.h> //Import ESP8266 Wifi libraries
+#include <SPI.h> // Import Serial Peripheral Interface library
+#include <RF24.h> //Import NRF24 Libraries
+ 
+ // Defining data pin connection to ESP 
+#define CE_PIN  4   
+#define CSN_PIN 5  
+RF24 radio(CE_PIN, CSN_PIN);
+
+
+void setup() {
+  Serial.begin(74800); // Initialize Serial Monitor with a baud rate of 9600(As recomended in the ESP8266 data sheet)
+  delay(500); // Delay to ensure output stability
+
+
+  WiFi.mode(WIFI_STA); //Wifi mode set to Station (Client) 
+  WiFi.disconnect(); //Disconnect from any previous connections 
+
+// Validate that RF module is working
+    if (!radio.begin()) {
+    Serial.println("NRF24 not responding");
+    while (true) delay(1000);
+  }
+
+  radio.setAutoAck(false);
+  radio.setPALevel(RF24_PA_LOW); // Setting power amplification
+  radio.setDataRate(RF24_1MBPS); // Setting data length
+  radio.setCRCLength(RF24_CRC_16);
+  radio.disableDynamicPayloads();
+  radio.setPayloadSize(32);
+
+  // Validation to make sure that code is running 
+  Serial.println("Scanning WiFi..."); 
+  Serial.println("RPD energy scan starting..."); 
+}
+
+void loop() {
+
+  
+
+  int networksScanned = WiFi.scanNetworks(); // Declared Integer to store number of networks found
+
+
+// Print the number of Networks found in the scan
+  Serial.print("Found "); 
+  Serial.print(networksScanned);
+  Serial.println(" networks");
+
+  for (int i = 0; i < networksScanned; i++) {
+    // Print the Network information (SSID, RSSI, Encryption)    
+    Serial.print("SSID:");
+    Serial.println(WiFi.SSID(i));
+    Serial.print("RSSI:");
+    Serial.println(WiFi.RSSI(i));
+    Serial.print("Encryption Type:");
+    Serial.println(WiFi.encryptionType(i));
+    delay(10);
+  }
+// Scan channels 0-125 and count how often RPD triggers
+  for (int ch = 0; ch <= 125; ch++) {
+    int busy = 0;
+
+    radio.setChannel(ch);
+    radio.startListening(); // enable listening mode
+
+    // sample a few times on this channel
+    for (int i = 0; i < 30; i++) {
+      delayMicroseconds(250);           // short dwell
+      if (radio.testRPD()) busy++;      // energy threshold detected
+      delayMicroseconds(250);
+    }
+
+    radio.stopListening(); //Disable listening mode. 
+
+    Serial.print(ch);
+    Serial.print(",");
+    Serial.println(busy);
+  }
+  Serial.println("----");
+  delay(10000); // Delay of 10 seconds 
+}
